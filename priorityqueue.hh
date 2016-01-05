@@ -39,6 +39,25 @@ class PriorityQueue {
     value_to_key v_to_k;
     key_to_value k_to_v;
 
+    void deleteValue(typename value_set::iterator v_it) {
+        elem--;
+        typename key_set::iterator k_it = *(v_to_k.find(v_it)->second.begin());
+
+        v_to_k.find(v_it)->second.erase(k_it);
+        if (v_to_k.find(v_it)->second.empty())
+            v_to_k.erase(v_it);
+
+        k_to_v.find(k_it)->second.erase(v_it);
+        if (k_to_v.find(k_it)->second.empty())
+            k_to_v.erase(k_it);
+
+        if (v_to_k.find(v_it) == v_to_k.end())
+            values.erase(v_it);
+
+        if (k_to_v.find(k_it) == k_to_v.end())
+            keys.erase(k_it);
+    }
+
     public:
     PriorityQueue() : elem(), values(), keys(), v_to_k(), k_to_v() {}
 
@@ -100,8 +119,17 @@ class PriorityQueue {
     }
 
     void deleteMin() {
-        typename value_set::iterator min_v = values.begin();
+        if (empty())
+            throw new PriorityQueueEmptyException();
+        deleteValue(values.begin());
+    }
 
+    void deleteMax() {
+        if (empty())
+            throw new PriorityQueueEmptyException();
+        typename value_set::iterator it = values.end();
+        it--;
+        deleteValue(it);
     }
 };
 
