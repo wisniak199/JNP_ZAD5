@@ -1,19 +1,7 @@
 #include <iostream>
-#include <map>
 #include <set>
-
-using namespace std;
-namespace {
-    template<typename K>
-    struct key_it_comp {
-        bool operator() (const typename set<K>::iterator& a, const typename set<K>::iterator& b) const {return *a < *b;}
-    };
-
-    template<typename V>
-    struct value_it_comp {
-        bool operator() (const typename set<V>::iterator a, const typename set<V>::iterator& b) const {return *a < *b;}
-    };
-}
+#include <memory>
+#include <utility>
 
 class PriorityQueueEmptyException {
     public:
@@ -26,110 +14,120 @@ class PriorityQueueEmptyException {
 template<typename K, typename V>
 class PriorityQueue {
     public:
-    typedef size_t size_type;
+        typedef size_t size_type;
 
     private:
-    typedef set<V> value_set;
-    typedef set<K> key_set;
-    typedef map<typename value_set::iterator, multiset<typename key_set::iterator, key_it_comp<K>>, value_it_comp<V>> value_to_key;
-    typedef map<typename key_set::iterator, multiset<typename value_set::iterator, value_it_comp<V>>, key_it_comp<K>> key_to_value;
-    size_type elem;
-    set<V> values;
-    set<K> keys;
-    value_to_key v_to_k;
-    key_to_value k_to_v;
+        typedef std::pair<K, V> key_value_pair;
+        typedef std::shared_ptr<key_value_pair> key_value_ptr;
 
-    void deleteValue(typename value_set::iterator v_it) {
-        elem--;
-        typename key_set::iterator k_it = *(v_to_k.find(v_it)->second.begin());
+        //struktury do porownywania
+        struct key_first_cmp {
+            bool operator() (const key_value_ptr& a, const key_value_ptr& b) const {
+                return a->first == b->first ? a->second < b->second : a->first < b->first;
+            }
+        };
 
-        v_to_k.find(v_it)->second.erase(k_it);
-        if (v_to_k.find(v_it)->second.empty())
-            v_to_k.erase(v_it);
+        struct value_first_cmp {
+            bool operator() (const key_value_ptr& a, const key_value_ptr& b) const {
+                return a->second == b->second ? a->first < b->second : a->second < b->second;
+            }
+        };
 
-        k_to_v.find(k_it)->second.erase(v_it);
-        if (k_to_v.find(k_it)->second.empty())
-            k_to_v.erase(k_it);
+        typedef std::multiset<key_value_ptr, value_first_cmp> value_set;
+        typedef std::multiset<key_value_ptr, key_first_cmp> key_set;
 
-        if (v_to_k.find(v_it) == v_to_k.end())
-            values.erase(v_it);
-
-        if (k_to_v.find(k_it) == k_to_v.end())
-            keys.erase(k_it);
-    }
+        //oba sety zawieraja te same wskazniki na pary, roznia sie tylko kolejnoscia sortowania
+        value_set values;
+        key_set keys;
 
     public:
-    PriorityQueue() : elem(), values(), keys(), v_to_k(), k_to_v() {}
+
+    PriorityQueue() : values(), keys(){}
+
+    //UWAGA Czy kopiowanie moze sie nie powiesc
+    PriorityQueue(const PriorityQueue<K, V>& queue) : values(queue.values), keys(queue.keys) {}
+
+    //Uwaga Czy move moze sie wysypac, czy trzeba wyczyscic queue bo teraz bedzie w bardzo nieladnym stanie
+    PriorityQueue(const PriorityQueue<K, V>&& queue) : values(std::move(queue.values)), keys(std::move(queue.keys)) {}
 
     size_type size() const {
-        return elem;
+        return values.size();
     }
 
     size_type empty() const {
-        return elem == 0;
+        return values.empty();
     }
 
     void insert(const K& key, const V& value) {
-        elem++;
-        values.insert(value);
-        typename value_set::iterator value_it = values.find(value);
-        keys.insert(key);
-        typename key_set::iterator key_it = keys.find(key);
+        key_value_pair to_add(key, value);
+        key_value_ptr to_add_ptr = std::make_shared<key_value_pair>(to_add);
+        typename value_set::iterator where_to_add_values = values.lower_bound(to_add_ptr);
 
-        if (v_to_k.find(value_it) == v_to_k.end()) {
-            multiset<typename key_set::iterator, key_it_comp<K>> temp;
-            v_to_k.emplace(value_it, temp);
-        }
-        typename value_to_key::iterator it1 = v_to_k.find(value_it);
-        it1->second.insert(key_it);
+        //jezeli w secie istnieje juz taka para to nie wstawiamy do pointera wskazujacy na nowy obiekt stworzony przez make_shared
+        //tylko zminiamy go na ptr ktory juz jest w secie, dzeki temu ten obiekt ktory przed chwila stworzyl sie przez make_shared
+        //zostanie usuniety
+        if (where_to_add_values != values.end() && **where_to_add_values == to_add)
+            to_add_ptr = *where_to_add_values;
 
-        if (k_to_v.find(key_it) == k_to_v.end()) {
-            multiset<typename value_set::iterator, value_it_comp<V>> temp;
-            k_to_v.emplace(key_it, temp);
+        //czy to wystarczy?
+        //jak do pierwszego nie uda sie wrzucic to wszytko jest ok wyjatek leci
+        typename value_set::iterator where_added = values.insert(to_add_ptr);
+        try {
+            //jak tu sie nie uda to trzeba usunac z porzedniego
+            keys.insert(to_add_ptr);
         }
-        typename key_to_value::iterator it2 = k_to_v.find(key_it);
-        it2->second.insert(value_it);
+        catch (...) {
+            //erase jest nothrow jezeli dajemy mu iterator
+            values.erase(where_added);
+            throw;
+        }
+
     }
 
     const V& minValue() const {
         if (empty())
             throw new PriorityQueueEmptyException();
-        return *(values.begin());
+        return (*(values.begin()))->second;
     }
 
     const V& maxValue() const {
         if (empty())
             throw new PriorityQueueEmptyException();
-        return *(values.rbegin());
+        return (*(values.rbegin()))->second;
     }
 
     const K& minKey() const {
         if (empty())
             throw new PriorityQueueEmptyException();
-        typename value_set::iterator it = values.begin();
-        return **((v_to_k.find(it)->second).begin());
+        return (*(values.begin()))->first;
     }
 
     const K& maxKey() const {
         if (empty())
             throw new PriorityQueueEmptyException();
-        typename value_set::iterator it = values.end();
-        it--;
-        return **((v_to_k.find(it)->second).begin());
+        return (*(values.rbegin()))->first;
     }
 
     void deleteMin() {
         if (empty())
-            throw new PriorityQueueEmptyException();
-        deleteValue(values.begin());
+            return;
+        typename value_set::iterator to_delete_it_v = values.begin();
+        typename key_set::iterator to_delete_it_k = keys.lower_bound(*to_delete_it_v);
+        //erase jest no_throw jezeli dajemy mu iterator
+        values.erase(to_delete_it_v);
+        keys.erase(to_delete_it_k);
     }
 
     void deleteMax() {
         if (empty())
-            throw new PriorityQueueEmptyException();
-        typename value_set::iterator it = values.end();
-        it--;
-        deleteValue(it);
+            return;
+        typename value_set::iterator to_delete_it_v = values.end();
+        to_delete_it_v--;
+        typename key_set::iterator to_delete_it_k = keys.lower_bound(*to_delete_it_v);
+        to_delete_it_k--;
+        //erase jest no_throw jezeli dajemy mu iterator
+        values.erase(to_delete_it_v);
+        keys.erase(to_delete_it_k);
     }
 };
 
