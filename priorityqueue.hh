@@ -15,6 +15,8 @@ template<typename K, typename V>
 class PriorityQueue {
     public:
         typedef size_t size_type;
+        typedef K key_type;
+        typedef V value_type;
 
     private:
         typedef std::pair<K, V> key_value_pair;
@@ -129,7 +131,78 @@ class PriorityQueue {
         values.erase(to_delete_it_v);
         keys.erase(to_delete_it_k);
     }
+
+    void changeValue(const K& key, const V& value) {
+
+    }
+
+    void swap(PriorityQueue<K, V>& queue) {
+        values.swap(queue.values);
+        keys.swap(queue.keys);
+    }
 };
+
+template <typename K, typename V>
+void swap(PriorityQueue<K, V>& a, PriorityQueue<K, V>& b) {
+    a.swap(b);
+}
+
+template <typename K, typename V>
+bool operator==(const PriorityQueue<K, V>& a, const PriorityQueue<K, V>& b) {
+    if (a.size() != b.size())
+        return false;
+    value_set::iterator a_it = a.values.begin();
+    value_set::iterator b_it = b.values.begin();
+    while (a_it != a.end()) {
+        if (**a_it != **b_it)
+            return false;
+        a_it++;
+        b_it++;
+    }
+    return true;
+}
+
+template <typename K, typename V>
+bool operator!=(const PriorityQueue<K, V>& a, const PriorityQueue<K, V>& b) {
+    return !(a == b);
+}
+
+template <typename K, typename V>
+bool operator<(const PriorityQueue<K, V>& a, const PriorityQueue<K, V>& b) {
+    value_set::iterator a_it = a.values.begin();
+    value_set::iterator b_it = b.values.begin();
+    while (a_it != a.values.end() && b_it != b.values.end()) {
+        if (**a_it != **b_it) {
+            if (**a_it < **b_it)
+                return true;
+            else
+                return false;
+        }
+        a_it++;
+        b_it++;
+    }
+    if (a_it == a.values.end() && b_it == b.values.end())
+        return false;
+    else if (a_it == a.values.end())
+        return true;
+    else
+        return false;
+}
+
+template <typename K, typename V>
+bool operator<=(const PriorityQueue<K, V>& a, const PriorityQueue<K, V>& b) {
+    return a == b || a < b;
+}
+
+template <typename K, typename V>
+bool operator>(const PriorityQueue<K, V>& a, const PriorityQueue<K, V>& b) {
+    return !(a <= b);
+}
+
+template <typename K, typename V>
+bool operator>=(const PriorityQueue<K, V>& a, const PriorityQueue<K, V>& b) {
+    return !(a < b);
+}
 
 
 
