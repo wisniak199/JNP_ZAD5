@@ -5,10 +5,8 @@ Autor: Piotr Wiśniewski 361286
 #ifndef __PRIORITYQUEUE_HH__
 #define __PRIORITYQUEUE_HH__
 
-#include <iostream>
 #include <set>
 #include <memory>
-#include <utility>
 
 
 // Wyjatki
@@ -95,7 +93,7 @@ class PriorityQueue {
 
         // Operator przypisania [O(queue.size()) dla uzycia P = Q, a O(1) dla uzycia
         // P = move(Q)]
-        PriorityQueue(const PriorityQueue<K, V>&& queue) :
+        PriorityQueue(PriorityQueue<K, V>&& queue) :
             values(std::move(queue.values)), keys(std::move(queue.keys)) {}
 
         // Metoda zwracajaca liczbe par (klucz, wartosc) przechowywanych w kolejce
@@ -200,10 +198,10 @@ class PriorityQueue {
             keys.erase(to_delete_it_k);
         }
 
-    // Metoda zmieniajaca dotychczasowa wartosc przypisana kluczowi key na nowa
-    // wartosc value [O(log size())]; w przypadku kiedy w kolejce jest kilka par
-    // o kluczu key, zmienia wartość w dowolnie wybranej parze o podanym kluczu
-    // Wyjatki: silna gwarancja
+        // Metoda zmieniajaca dotychczasowa wartosc przypisana kluczowi key na nowa
+        // wartosc value [O(log size())]; w przypadku kiedy w kolejce jest kilka par
+        // o kluczu key, zmienia wartość w dowolnie wybranej parze o podanym kluczu
+        // Wyjatki: silna gwarancja
         void changeValue(const K& key, const V& value) {
             if (empty())
                 throw PriorityQueueNotFoundException();
@@ -299,7 +297,7 @@ class PriorityQueue {
         // P = move(Q)]
         // Wyjatki: silna gwarancja
         PriorityQueue<K, V>& operator=(PriorityQueue<K, V> queue) {
-            this->swap(queue);
+            queue.swap(*this);
             return *this;
         }
 
