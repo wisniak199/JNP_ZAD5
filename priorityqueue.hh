@@ -33,13 +33,13 @@ class PriorityQueue {
         //struktury do porownywania
         struct key_first_cmp {
             bool operator() (const key_value_ptr& a, const key_value_ptr& b) const {
-                return a->first == b->first ? a->second < b->second : a->first < b->first;
+                return !(a->first < b->first || b->first < a->first) ? a->second < b->second : a->first < b->first;
             }
         };
 
         struct value_first_cmp {
             bool operator() (const key_value_ptr& a, const key_value_ptr& b) const {
-                return a->second == b->second ? a->first < b->first : a->second < b->second;
+                return !(a->second < b->second || b->second < a->second) ? a->first < b->first : a->second < b->second;
             }
         };
 
@@ -49,6 +49,18 @@ class PriorityQueue {
         //oba sety zawieraja te same wskazniki na pary, roznia sie tylko kolejnoscia sortowania
         value_set values;
         key_set keys;
+
+        bool equal_key(const K& k1, const K& k2) const {
+            return !(k1 < k2 || k2 < k1);
+        }
+
+        bool equal_value(const V& v1, const V& v2) const {
+            return !(v1 < v2 || v2 < v1);
+        }
+
+        bool equal_pair(const key_value_pair& p1, const key_value_pair& p2) const {
+            return equal_key(p1.first, p2.first) && equal_value(p1.second, p2.second);
+        }
 
     public:
 
@@ -70,14 +82,13 @@ class PriorityQueue {
 
     //byc moze kazdy wyjatek trzeba lapac a potem rzucac ponownie - mozliwe ze jak nie zlapie to nie wywoluja sie destruktory
     void insert(const K& key, const V& value) {
-        key_value_pair to_add(key, value);
-        key_value_ptr to_add_ptr = std::make_shared<key_value_pair>(to_add);
-        typename value_set::iterator where_to_add_values = values.lower_bound(to_add_ptr);
+        key_value_ptr to_add_ptr = std::make_shared<key_value_pair>(key, value);
+        typename value_set::iterator where_to_add_values = values.find(to_add_ptr);
 
         //jezeli w secie istnieje juz taka para to nie wstawiamy do pointera wskazujacy na nowy obiekt stworzony przez make_shared
         //tylko zminiamy go na ptr ktory juz jest w secie, dzeki temu ten obiekt ktory przed chwila stworzyl sie przez make_shared
         //zostanie usuniety
-        if (where_to_add_values != values.end() && **where_to_add_values == to_add)
+        if (where_to_add_values != values.end())
             to_add_ptr = *where_to_add_values;
 
         //czy to wystarczy?
@@ -149,11 +160,11 @@ class PriorityQueue {
         key_value_ptr to_add_ptr = std::make_shared<key_value_pair>(to_add);
         typename key_set::iterator to_remove_it_k = keys.lower_bound(to_add_ptr);
 
-        if (to_remove_it_k == keys.end() || !((*to_remove_it_k)->first == key))
+        if (to_remove_it_k == keys.end() || !equal_key((*to_remove_it_k)->first, key))
             to_remove_it_k--;
-        if (**to_remove_it_k == to_add)
+        if (equal_pair(**to_remove_it_k, to_add))
             return;
-        if (!((*to_remove_it_k)->first == key))
+        if (!equal_key((*to_remove_it_k)->first, key))
             throw PriorityQueueNotFoundException();
 
         typename value_set::iterator to_remove_it_v = values.find(*to_remove_it_k);
@@ -217,7 +228,7 @@ class PriorityQueue {
         typename value_set::iterator this_it = this->values.begin();
         typename value_set::iterator queue_it = queue.values.begin();
         while (this_it != this->values.end()) {
-            if (**this_it != **queue_it)
+            if (!equal_pair(**this_it, **queue_it))
                 return false;
             this_it++;
             queue_it++;
@@ -230,10 +241,10 @@ class PriorityQueue {
     }
 
     bool operator<(const PriorityQueue<K, V>& queue) const {
-        typename value_set::iterator this_it = this->values.begin();
-        typename value_set::iterator queue_it = queue.values.begin();
-        while (this_it != this->values.end() && queue_it != queue.values.end()) {
-            if (**this_it != **queue_it) {
+        typename key_set::iterator this_it = this->keys.begin();
+        typename key_set::iterator queue_it = queue.keys.begin();
+        while (this_it != this->keys.end() && queue_it != queue.keys.end()) {
+            if (!equal_pair(**this_it, **queue_it)) {
                 if (**this_it < **queue_it)
                     return true;
                 else
@@ -242,9 +253,9 @@ class PriorityQueue {
             this_it++;
             queue_it++;
         }
-        if (this_it == this->values.end() && queue_it == queue.values.end())
+        if (this_it == this->keys.end() && queue_it == queue.keys.end())
             return false;
-        else if (this_it == this->values.end())
+        else if (this_it == this->keys.end())
             return true;
         else
             return false;
